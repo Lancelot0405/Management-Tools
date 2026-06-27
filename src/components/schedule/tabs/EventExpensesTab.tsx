@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Plus, ChevronDown, ChevronUp, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { Button, Card, Spinner, TextField, Label, Input, FieldError, Select, ListBox } from '@heroui/react';
 import { Controller, useForm } from 'react-hook-form';
@@ -196,7 +196,7 @@ export default function EventExpensesTab({ event }: Props) {
                             name="category"
                             control={control}
                             render={({ field }) => (
-                              <Select value={field.value || null} onChange={(key) => field.onChange(key != null ? String(key) as ExpenseCategory : 'Vé tàu/xe')} isInvalid={!!errors.category} className="w-full flex flex-col gap-1">
+                              <Select selectedKey={field.value || 'Vé tàu/xe'} onSelectionChange={(key) => field.onChange(key != null ? String(key) as ExpenseCategory : 'Vé tàu/xe')} isInvalid={!!errors.category} className="w-full flex flex-col gap-1">
                                 <Label className="text-xs font-medium text-foreground/80">Loại</Label>
                                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                                 <Select.Popover>

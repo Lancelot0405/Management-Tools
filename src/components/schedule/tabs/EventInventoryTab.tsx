@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, X, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, TextField, Label, Input, Select, ListBox } from '@heroui/react';
@@ -123,7 +123,7 @@ export default function EventInventoryTab({ event }: Props) {
               <Label className="text-xs font-medium text-foreground/80">Cảnh báo</Label>
               <Input type="number" min={0} step={0.1} placeholder="0" />
             </TextField>
-            <Select value={newUnit || null} onChange={(key) => setNewUnit(key != null ? String(key) as InventoryUnit : 'kg')} className="w-full flex flex-col gap-1">
+            <Select selectedKey={newUnit || 'kg'} onSelectionChange={(key) => setNewUnit(key != null ? String(key) as InventoryUnit : 'kg')} className="w-full flex flex-col gap-1">
               <Label className="text-xs font-medium text-foreground/80">Đơn vị</Label>
               <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
               <Select.Popover>
@@ -179,7 +179,7 @@ export default function EventInventoryTab({ event }: Props) {
                           <TextField value={editQty} onChange={setEditQty} autoFocus className="w-16 flex flex-col gap-1">
                             <Input type="number" min={0} step={0.1} className="h-8 rounded-lg px-2 py-1 text-right" />
                           </TextField>
-                          <Select value={editUnit || null} onChange={(key) => setEditUnit(key != null ? String(key) as InventoryUnit : 'kg')} className="w-20 flex flex-col gap-1">
+                          <Select selectedKey={editUnit || 'kg'} onSelectionChange={(key) => setEditUnit(key != null ? String(key) as InventoryUnit : 'kg')} className="w-20 flex flex-col gap-1">
                             <Select.Trigger className="h-8 text-xs py-0"><Select.Value /><Select.Indicator /></Select.Trigger>
                             <Select.Popover>
                               <ListBox>

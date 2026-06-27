@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Plus, Upload, Image, X, Pencil, Check, CreditCard, ShieldCheck, KeyRound, Copy, CheckCheck, Building2 } from 'lucide-react';
 import { Button, Card, Label, Link, Spinner, ToggleButton, ToggleButtonGroup, TextField, Input, Select, ListBox } from '@heroui/react';
@@ -561,8 +561,8 @@ export default function StaffProfile() {
               </Button>
             </div>
             <Select
-              value={formEventId ? String(formEventId) : null}
-              onChange={(key) => setFormEventId(key != null ? Number(String(key)) : '')}
+              selectedKey={formEventId ? String(formEventId) : null}
+              onSelectionChange={(key) => setFormEventId(key != null ? Number(String(key)) : '')}
               isRequired
               className="w-full flex flex-col gap-1"
               placeholder="Chọn sự kiện"
@@ -585,8 +585,8 @@ export default function StaffProfile() {
             </Select>
             <div className="grid grid-cols-2 gap-2">
               <Select
-                value={formCategory || null}
-                onChange={(key) => setFormCategory(key != null ? String(key) as ExpenseCategory : 'Vé tàu/xe')}
+                selectedKey={formCategory || 'Vé tàu/xe'}
+                onSelectionChange={(key) => setFormCategory(key != null ? String(key) as ExpenseCategory : 'Vé tàu/xe')}
                 className="w-full flex flex-col gap-1"
               >
                 <Label className="text-xs font-medium text-foreground/80">Loại chi phí</Label>

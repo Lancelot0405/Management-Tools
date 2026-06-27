@@ -29,7 +29,7 @@ export default function InventoryToolbar({
           <SearchField.ClearButton />
         </SearchField.Group>
       </SearchField>
-      <Select value={sort || null} onChange={(key) => { if (key != null) onSortChange(String(key) as SortKey); }} className="sm:w-52 shrink-0 flex flex-col gap-1">
+      <Select selectedKey={sort || 'status'} onSelectionChange={(key) => { if (key != null) onSortChange(String(key) as SortKey); }} className="sm:w-52 shrink-0 flex flex-col gap-1">
         <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
         <Select.Popover>
           <ListBox>

@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Button, SearchField, Select, ListBox } from '@heroui/react';
 import type { InventoryLogEntry } from '../../types';
 
@@ -54,7 +54,7 @@ export default function InventoryLogList({ logs }: Props) {
             <SearchField.ClearButton />
           </SearchField.Group>
         </SearchField>
-        <Select value={festivalFilter || '__all__'} onChange={(key) => setFestivalFilter(key === '__all__' || key == null ? '' : String(key))} className="min-w-[150px] flex flex-col gap-1">
+        <Select selectedKey={festivalFilter || '__all__'} onSelectionChange={(key) => setFestivalFilter(key === '__all__' || key == null ? '' : String(key))} className="min-w-[150px] flex flex-col gap-1">
           <Select.Trigger className="h-9 text-sm"><Select.Value /><Select.Indicator /></Select.Trigger>
           <Select.Popover>
             <ListBox>

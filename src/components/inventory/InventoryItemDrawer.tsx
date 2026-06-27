@@ -134,7 +134,7 @@ export default function InventoryItemDrawer({ item, isOpen, onClose }: Props) {
         name="unit"
         control={control}
         render={({ field }) => (
-          <Select value={field.value || null} onChange={(key) => field.onChange(key != null ? String(key) : '')} isInvalid={!!errors.unit} className="w-full flex flex-col gap-1">
+          <Select selectedKey={field.value || ''} onSelectionChange={(key) => field.onChange(key != null ? String(key) : '')} isInvalid={!!errors.unit} className="w-full flex flex-col gap-1">
             <Label className="text-xs font-medium text-foreground/80">Đơn vị</Label>
             <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
             <Select.Popover>
