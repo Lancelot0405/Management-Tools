@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eventSchema, staffSchema, clientSchema, expenseSchema, inventoryItemSchema } from './validations';
+import { eventSchema, staffSchema, clientSchema, expenseSchema, inventoryItemSchema } from '../lib/validations';
 
 describe('eventSchema', () => {
   it('pass khi dữ liệu hợp lệ', () => {

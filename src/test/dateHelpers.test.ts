@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toISODate, fromISODate } from './dateHelpers';
+import { toISODate, fromISODate } from '../lib/dateHelpers';
 
 describe('toISODate (DD-MM-YYYY → YYYY-MM-DD)', () => {
   it('chuyển định dạng hiển thị sang ISO', () => {

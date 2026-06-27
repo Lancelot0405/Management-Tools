@@ -2,6 +2,30 @@ import { supabase } from '../../lib/supabase';
 import { adminApi } from '../../lib/adminApi';
 import type { Client } from '../../types';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbRow = Record<string, any>;
+
+// -----------------------------------------------------------------------------
+// FETCH
+// -----------------------------------------------------------------------------
+
+export async function fetchClients(): Promise<Client[]> {
+  const { data, error } = await supabase.from('clients').select('*');
+  if (error || !data) return [];
+  return data.map((row: DbRow): Client => ({
+    id: row.id,
+    name: row.name ?? '',
+    contactName: row.contact_name ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    city: row.city ?? '',
+    notes: row.notes ?? '',
+    eventIds: row.event_ids ?? [],
+  }));
+}
+
+
+
 export async function apiAddClient(client: Client): Promise<void> {
   const { error } = await supabase.from('clients').insert({
     name: client.name,

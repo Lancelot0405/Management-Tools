@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appReducer, initialState } from './appReducer';
+import { appReducer, initialState } from '../context/appReducer';
 
 describe('appReducer — auth', () => {
   it('LOGIN gán currentUser và tắt loading', () => {

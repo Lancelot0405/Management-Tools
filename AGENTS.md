@@ -65,13 +65,14 @@ src/
 │   ├── schedule/      # Schedule, EventDetail, AddEventForm, EventPDFExport
 │   │   └── tabs/      # EventInfoTab, EventStaffTab, EventExpensesTab, EventInventoryTab, EventContractsTab
 │   └── shared/        # ErrorBoundary, StatusBadge, DocThumbnail, AppDatePicker, FranceCityAutocomplete
-│       └── skeletons/          # CardSkeleton, ListSkeleton, PageSkeleton (HeroUI Skeleton)
+│       └── skeletons/ # CardSkeleton, ListSkeleton, PageSkeleton (HeroUI Skeleton)
 │  # LƯU Ý: Glass* wrappers ĐÃ BỊ GỠ — dùng trực tiếp HeroUI TextField/Select/TextArea
 ├── context/
 │   ├── AppContext.tsx  # Auth state + currentUser (useReducer + appReducer); auth listener + realtime
 │   ├── ThemeContext.tsx # Dark/light + accent color (đồng bộ Supabase user_metadata)
 │   ├── ToastContext.tsx # useToast()
-│   └── FABContext.tsx   # Floating action button toàn cục (useFABRegister để đăng ký)
+│   ├── FABContext.tsx   # Floating action button toàn cục (useFABRegister để đăng ký)
+│   └── appReducer.ts   # Auth reducer (logic tách khỏi AppContext)
 ├── hooks/
 │   ├── queries/        # TanStack Query hooks (useEventsQuery, useStaffQuery, useInventoryQuery,
 │   │   │               #   useClientsQuery, useInventoryLogsQuery, usePendingRegistrationsQuery)
@@ -83,23 +84,34 @@ src/
 │   ├── useKeyboardOffset.ts
 │   └── useIsDesktop.ts
 ├── services/
-│   └── api/            # Supabase data functions (events.ts, staff.ts, inventory.ts, clients.ts)
-├── lib/
+│   └── api/            # Tất cả Supabase data functions (fetch + mutations)
+│       ├── clients.ts  # fetchClients + CRUD clients
+│       ├── events.ts   # fetchEvents + CRUD events/expenses
+│       ├── inventory.ts # fetchInventory + fetchInventoryLogs + mutations
+│       ├── registrations.ts # fetchPendingRegistrations
+│       └── staff.ts    # fetchStaff + CRUD staff/contracts
+├── lib/                # Pure utilities (không có side effects, không Supabase calls)
 │   ├── supabase.ts     # Supabase client (anon key only)
-│   ├── db.ts           # Data fetchers + mapping ngày (khoanh vùng `any` tại ranh giới DB)
 │   ├── adminApi.ts     # Gọi Edge Function cho tác vụ admin
 │   ├── dateHelpers.ts  # toISODate / fromISODate
-│   ├── eventStatus.ts  # Hằng số trạng thái sự kiện
+│   ├── eventStatus.ts  # computeEventStatus
 │   ├── validations.ts  # Zod schemas
 │   ├── animations.ts   # Framer motion variants
 │   ├── queryKeys.ts    # TanStack Query key factory
 │   ├── errors.ts       # Custom error classes
-│   └── utils.ts        # cn() — clsx + tailwind-merge
+│   ├── utils.ts        # cn() — clsx + tailwind-merge
+│   └── db.ts           # ⚠️ DEPRECATED — chỉ còn re-export toISODate/fromISODate
 ├── types/
 │   ├── index.ts        # Interfaces dùng chung
 │   └── database.types.ts # Generated types từ Supabase schema
-├── data/mockData.ts    # Dữ liệu mock/tĩnh
-└── test/setup.ts       # Vitest + Testing Library + MSW setup
+├── data/
+│   └── mockData.ts     # Mock data cho phát triển & test UI
+└── test/               # Tất cả test files (tập trung tại đây)
+    ├── setup.ts        # Vitest + Testing Library + MSW setup
+    ├── appReducer.test.ts
+    ├── dateHelpers.test.ts
+    ├── eventStatus.test.ts
+    └── validations.test.ts
 ```
 
 **Backend (Supabase):**
@@ -112,7 +124,13 @@ supabase/
                            #   create-staff, set-password, delete-user, get-user-email
 ```
 
-**Docs:** `docs/PLAN.md`
+**Root:**
+```
+scripts/                   # Utility scripts (Node.js, chạy độc lập ngoài app)
+└── generate_vapid.js      # Tạo VAPID key pair cho Web Push
+```
+
+**Docs:** `docs/PLAN.md` · `docs/ARCHITECTURE.md`
 
 ---
 
@@ -222,9 +240,10 @@ VITE_VAPID_PUBLIC_KEY=...
 ## Testing
 
 - Framework: **Vitest**
-- Test files: `src/**/*.test.ts`
+- Test files: **tập trung trong `src/test/`** (không lẫn vào production code)
 - Test files hiện có: `appReducer.test.ts`, `dateHelpers.test.ts`, `eventStatus.test.ts`, `validations.test.ts`
-- Khi thêm logic mới trong `lib/` hoặc service functions, viết unit test kèm theo
+- Setup: `src/test/setup.ts` — Vitest globals + Testing Library + MSW
+- Khi thêm logic mới trong `lib/` hoặc `services/api/`, viết unit test trong `src/test/` kèm theo
 
 ---
 

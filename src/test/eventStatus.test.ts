@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { computeEventStatus } from './eventStatus';
+import { computeEventStatus } from '../lib/eventStatus';
 
 // Cố định "hôm nay" = 15-06-2026 để test xác định, không phụ thuộc ngày chạy.
 const TODAY = new Date('2026-06-15T09:00:00');
