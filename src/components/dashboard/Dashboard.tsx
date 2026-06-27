@@ -147,7 +147,7 @@ function AdminDashboard({ events, staff, inventory, currentUser, navigate }: {
           <Tabs.ListContainer className="overflow-x-auto scrollbar-hide">
             <Tabs.List aria-label="Dashboard tabs" className="w-max min-w-full">
               {TABS.map(t => (
-                <Tabs.Tab key={t.key} id={t.key} className="text-sm whitespace-nowrap">
+                <Tabs.Tab key={t.key} id={t.key} className="text-sm whitespace-nowrap px-4 py-2.5 rounded-lg cursor-pointer">
                   {t.label}
                   <Tabs.Indicator />
                 </Tabs.Tab>
