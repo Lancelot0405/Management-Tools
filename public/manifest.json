@@ -1,0 +1,20 @@
+{
+  "name": "Management Tools",
+  "short_name": "Management Tools",
+  "description": "Quản lý sự kiện F&B chuyên nghiệp",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "background_color": "#f8f8f8",
+  "theme_color": "#f8f8f8",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "apple_touch_icon": "/icons/apple-touch-icon.png",
+  "categories": ["business", "productivity"]
+}

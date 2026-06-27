@@ -1,0 +1,277 @@
+# Management Tools — CLAUDE.md
+
+## Quy tắc bắt buộc
+
+- Luôn triển khai cho **PWA (mobile)** trước, sau đó mới điều chỉnh cho Tablet/PC
+- Luôn **chia nhỏ kế hoạch** thành các bước cụ thể trước khi bắt đầu triển khai
+- **Build phải sạch** (`npm run build`) trước mỗi commit
+- **Không thêm tính năng** ngoài phạm vi yêu cầu
+
+---
+
+## Tổng quan dự án
+
+Management Tools là một **Progressive Web App (PWA)** quản lý hoạt động F&B (Food & Beverage) cho các sự kiện và lễ hội. Ứng dụng được tối ưu cho mobile với hỗ trợ offline và thông báo push.
+
+**Stack:**
+- React 19 + TypeScript ~6 + Vite 8
+- **HeroUI v3.2** (`@heroui/react` + `@heroui/styles`) — UI component library (nguồn duy nhất cho UI)
+- Tailwind CSS 4 (`@tailwindcss/vite`, dark mode via CSS class) + `tailwind-merge` + `clsx` (`cn()` trong `lib/utils.ts`)
+- TanStack Query v5 (+ devtools) — server state & data fetching
+- React Router v7 — routing (`BrowserRouter`, route lazy + `Suspense`)
+- React Hook Form v7 + Zod (`@hookform/resolvers`) — form & validation
+- Framer Motion — animation; Lucide React — icons
+- Supabase (`@supabase/supabase-js` v2) — PostgreSQL, Auth, Realtime, Edge Functions, Storage
+- Export: `@react-pdf/renderer` (PDF), `xlsx` (Excel)
+- Test: Vitest 2 + Testing Library + MSW; Lint: ESLint 10 + typescript-eslint
+- Triển khai trên Vercel (+ `@vercel/speed-insights`)
+
+**Ngôn ngữ:** Toàn bộ UI, label, và string dùng tiếng Việt. Định dạng ngày: DD-MM-YYYY.
+
+---
+
+## Lệnh phổ biến
+
+```bash
+npm run dev          # Khởi động dev server (http://localhost:5173)
+npm run build        # Type-check + build production (dist/)
+npm run lint         # Chạy ESLint
+npm run test         # Chạy test một lần
+npm run test:watch   # Chạy test ở watch mode
+npm run preview      # Preview build production
+```
+
+---
+
+## Kiến trúc & cấu trúc thư mục
+
+```
+src/
+├── App.tsx             # Routes + auth gate (splash / LoginScreen / Layout) — route lazy
+├── main.tsx            # Provider tree: NextThemes → Theme → Router → Query → ErrorBoundary → Toast → App → FAB
+├── components/
+│   ├── clients/       # Clients — quản lý khách hàng/đối tác sự kiện
+│   ├── dashboard/     # Dashboard — trang tổng quan, biểu đồ doanh thu
+│   ├── finance/       # Finance, EventFinanceCard, ExpenseList, FinanceSummaryCards, FinanceExport
+│   ├── hr/            # HRGlobal, StaffProfile, AddStaffForm
+│   ├── inventory/     # Inventory + Tabs/Toolbar/Summary, FoodTemplateManager, NumberPicker, useInventoryFilters
+│   ├── layout/        # TopBar, BottomNav, Sidebar, Layout, LoginScreen, ProtectedRoute,
+│   │                  #   UserSheet(+Content), AccentPicker
+│   ├── schedule/      # Schedule, EventDetail, AddEventForm, EventPDFExport
+│   │   └── tabs/      # EventInfoTab, EventStaffTab, EventExpensesTab, EventInventoryTab, EventContractsTab
+│   └── shared/        # ErrorBoundary, StatusBadge, DocThumbnail, AppDatePicker, FranceCityAutocomplete
+│       └── skeletons/          # CardSkeleton, ListSkeleton, PageSkeleton (HeroUI Skeleton)
+│  # LƯU Ý: Glass* wrappers ĐÃ BỊ GỠ — dùng trực tiếp HeroUI TextField/Select/TextArea
+├── context/
+│   ├── AppContext.tsx  # Auth state + currentUser (useReducer + appReducer); auth listener + realtime
+│   ├── ThemeContext.tsx # Dark/light + accent color (đồng bộ Supabase user_metadata)
+│   ├── ToastContext.tsx # useToast()
+│   └── FABContext.tsx   # Floating action button toàn cục (useFABRegister để đăng ký)
+├── hooks/
+│   ├── queries/        # TanStack Query hooks (useEventsQuery, useStaffQuery, useInventoryQuery,
+│   │   │               #   useClientsQuery, useInventoryLogsQuery, usePendingRegistrationsQuery)
+│   │   └── mutations/  # Mutation hooks (useCreateEvent, useUpdateStaff, useAddExpense, ...)
+│   ├── useFABRegister.ts
+│   ├── useInstallPrompt.ts
+│   ├── usePushNotifications.ts
+│   ├── useRealtimeNotifications.ts
+│   ├── useKeyboardOffset.ts
+│   └── useIsDesktop.ts
+├── services/
+│   └── api/            # Supabase data functions (events.ts, staff.ts, inventory.ts, clients.ts)
+├── lib/
+│   ├── supabase.ts     # Supabase client (anon key only)
+│   ├── db.ts           # Data fetchers + mapping ngày (khoanh vùng `any` tại ranh giới DB)
+│   ├── adminApi.ts     # Gọi Edge Function cho tác vụ admin
+│   ├── dateHelpers.ts  # toISODate / fromISODate
+│   ├── eventStatus.ts  # Hằng số trạng thái sự kiện
+│   ├── validations.ts  # Zod schemas
+│   ├── animations.ts   # Framer motion variants
+│   ├── queryKeys.ts    # TanStack Query key factory
+│   ├── errors.ts       # Custom error classes
+│   └── utils.ts        # cn() — clsx + tailwind-merge
+├── types/
+│   ├── index.ts        # Interfaces dùng chung
+│   └── database.types.ts # Generated types từ Supabase schema
+├── data/mockData.ts    # Dữ liệu mock/tĩnh
+└── test/setup.ts       # Vitest + Testing Library + MSW setup
+```
+
+**Backend (Supabase):**
+```
+supabase/
+├── schema.sql             # Định nghĩa schema PostgreSQL (bảng + enums + RLS)
+├── migrations/            # 001_manager_role_and_event_dates, 002_clients_and_push_subscriptions,
+│                          #   003_food_templates, 004_inventory_category_constraint
+└── functions/admin/       # Edge Function (1 entry index.ts, routing nội bộ): register,
+                           #   create-staff, set-password, delete-user, get-user-email
+```
+
+**Docs:** `docs/PLAN.md`
+
+---
+
+## State Management
+
+- **Server state:** TanStack Query v5 — tất cả fetch/mutation đi qua hooks trong `src/hooks/queries/`
+- **Auth state:** `AppContext` (useReducer + `appReducer`) giữ `currentUser` + `loading`; chạy auth
+  listener (Supabase `onAuthStateChange`) và realtime → invalidate query cache
+- **Toast:** `useToast()` từ `ToastContext`
+- **Theme:** `useTheme()` từ `ThemeContext` (dark/light + accent color, đồng bộ Supabase user_metadata)
+- **FAB:** `useFABRegister()` từ `FABContext` để đăng ký nút floating action toàn cục cho từng trang
+
+Khi thêm dữ liệu mới từ Supabase:
+1. Tạo service function trong `src/services/api/`
+2. Tạo query hook trong `src/hooks/queries/`
+3. Tạo mutation hook trong `src/hooks/queries/mutations/`
+4. Dùng query key từ `src/lib/queryKeys.ts`
+
+---
+
+## Database & Backend
+
+**Bảng chính:**
+| Bảng | Mô tả |
+|------|-------|
+| `users` | Auth users với roles: `admin`, `manager`, `staff` |
+| `staff_members` | Hồ sơ nhân viên |
+| `events` | Sự kiện lễ hội |
+| `event_staff` | Junction table event ↔ staff |
+| `contracts` | Hợp đồng nhân viên |
+| `inventory_items` | Tồn kho |
+| `inventory_logs` | Lịch sử thay đổi tồn kho |
+| `expenses` | Chi phí nhân viên (pending/approved/rejected) |
+| `clients` | Đối tác/khách hàng sự kiện |
+| `food_templates` | Mẫu tên/đơn vị thực phẩm dùng lại cho inventory |
+| `push_subscriptions` | Web Push VAPID subscriptions |
+| `registration_requests` | Yêu cầu đăng ký manager |
+
+**Edge Functions (`supabase/functions/admin/`):**
+- `register` — public, tự đăng ký staff/manager
+- `create-staff`, `set-password`, `delete-user`, `get-user-email` — chỉ admin
+
+**Quy tắc bảo mật:**
+- Service role key **chỉ** dùng trong Edge Functions, không bao giờ expose ra frontend
+- Row-Level Security (RLS) bật trên tất cả bảng
+- Tất cả tác vụ admin đi qua Edge Function
+
+---
+
+## Biến môi trường
+
+Tạo file `.env` từ `.env.example`:
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_VAPID_PUBLIC_KEY=...
+```
+
+---
+
+## HeroUI — Quy tắc sử dụng
+
+> **STOP. Những gì bạn nhớ về HeroUI v3 có thể SAI. Luôn đọc docs trước khi dùng.**
+> Docs local: `.heroui-docs/react/components/<tên-component>.mdx`
+
+**Nguyên tắc:**
+- Dùng HeroUI component cho mọi UI element — không tự viết button, input, modal, card
+- Input phức tạp → dùng `GlassInput` / `GlassSelect` / `GlassTextarea` làm wrapper
+- Card → `<Card>` từ `@heroui/react`, không dùng raw div với `bg-surface`
+- Dùng `variant`, `size`, `isSelected`, `isDisabled` prop thay vì manual className state
+- Dark mode tự động qua HeroUI theme — không cần `dark:` prefix cho HeroUI component
+
+**Design tokens (dùng trong Tailwind):**
+| Token | Dùng khi |
+|-------|---------|
+| `text-foreground` | Text chính |
+| `text-muted` | Text phụ, label |
+| `bg-surface` | Nền card (khi buộc phải dùng raw div) |
+| `border-separator` | Border card/divider |
+| `text-accent` | Màu nhấn (blue) |
+| `text-success/danger/warning` | Trạng thái |
+
+**Migration status:** Xem `docs/HEROUI-MIGRATION.md`
+
+---
+
+## Quy ước code
+
+- **TypeScript strict:** `noUnusedLocals`, `noUnusedParameters` bật — xóa imports/variables không dùng
+- **Tailwind CSS:** Dùng utility classes, dark mode qua prefix `dark:` (chỉ khi HeroUI không cover)
+- **Import order:** External packages trước, sau đó internal (relative)
+- **Component file:** Mỗi component trong file riêng, export default
+- **Không comment** trừ khi lý do thực sự không rõ ràng từ code
+
+---
+
+## Quy ước UI / UX
+
+- **Mobile-first:** max-width `md` là chuẩn, layout đơn cột
+- **iOS safe area:** Dùng `.pb-safe`, `.pt-safe` cho header và bottom nav
+- **Icons:** Lucide React (`lucide-react`) — không import thư viện icon khác
+- **Ngày tháng:** Hiển thị DD-MM-YYYY, lưu ISO 8601 trong DB
+- **Card pattern chuẩn:** Dùng HeroUI `<Card>` thay vì raw div
+
+---
+
+## Testing
+
+- Framework: **Vitest**
+- Test files: `src/**/*.test.ts`
+- Test files hiện có: `appReducer.test.ts`, `dateHelpers.test.ts`, `eventStatus.test.ts`, `validations.test.ts`
+- Khi thêm logic mới trong `lib/` hoặc service functions, viết unit test kèm theo
+
+---
+
+## PWA
+
+- Service Worker: `public/sw.js` — network-first cho HTML, cache-first cho assets
+- Manifest: `public/manifest.json`
+- Push notifications: Web Push API + VAPID (hook: `usePushNotifications`)
+- Cần test trên mobile thật hoặc DevTools > Application > Service Workers
+
+### iOS standalone — status bar & safe area (QUAN TRỌNG)
+
+- **Meta `apple-mobile-web-app-*` chỉ được iOS đọc lúc "Add to Home Screen".**
+  Đổi các meta này (status-bar-style, viewport...) **không có tác dụng** nếu chỉ
+  mở lại từ icon PWA cũ — phải **gỡ hẳn icon → mở lại bằng Safari → Add to Home
+  Screen** mới áp dụng.
+- **iOS 26+ regression:** `env(safe-area-inset-top)` đôi khi trả về `0` lúc
+  cold-start PWA standalone, làm header `fixed top-0` dính/đè status bar.
+- **Phương án đang dùng (A):** **bỏ `viewport-fit=cover`** trong `index.html` →
+  iOS giữ nội dung trong vùng safe area, status bar được OS chừa sẵn; kèm
+  `apple-mobile-web-app-status-bar-style=default`. Trade-off: mất hiệu ứng tràn
+  viền mép trên/dưới.
+- Các phương án đã thử khác (để tham khảo, không dùng):
+  - **B** — giữ `viewport-fit=cover` + JS đo safe-area + fallback + toggle viewport.
+  - **C** — giữ `viewport-fit=cover` + status-bar-style=default + sàn CSS
+    `@media (display-mode: standalone) { .pt-safe { padding-top: max(env(...), 59px) } }`.
+- Khi đụng tới header/safe-area: phải test trên iPhone thật ở chế độ **PWA
+  standalone**, **không** tin DevTools.
+
+---
+
+## Deployment
+
+- **Platform:** Vercel
+- **Build command:** `npm run build`
+- **Output dir:** `dist/`
+- Vercel Speed Insights đã tích hợp
+
+### Vercel & branch (QUAN TRỌNG — tránh "sửa mãi không thấy đổi")
+
+- **Production branch của project KHÔNG phải `final-gemini`.** Mỗi lần push lên
+  `final-gemini` chỉ tạo **preview deployment** (`target: null`), **không** tự lên
+  domain production `management-tools.vercel.app`.
+- Preview của `final-gemini` truy cập tại:
+  `webapp-fest-manager-git-final-gemini-lance0405.vercel.app`.
+- Để bản mới lên production: **Vercel dashboard → Deployments → chọn deployment
+  của commit cần đưa → ⋯ → Promote to Production**. (Hoặc đổi Production Branch
+  sang `final-gemini` trong Project Settings → Git để auto-deploy.)
+- ⚠️ Khi test bug trên thiết bị: **xác nhận đang test đúng URL/bản deploy**. Bug
+  "không bao giờ đổi dù sửa gì" thường là do test trên production cũ trong khi fix
+  mới chỉ nằm ở preview.
+
+<!-- HEROUI-REACT-AGENTS-MD-START -->
+[HeroUI React v3 Docs Index]|root: ./.heroui-docs/react|STOP. What you remember about HeroUI React v3 is WRONG for this project. Always search docs and read before any task.|If docs missing, run this command first: heroui agents-md --react --output CLAUDE.md|components/(buttons):{button-group.mdx,button.mdx,close-button.mdx,toggle-button-group.mdx,toggle-button.mdx}|components/(collections):{dropdown.mdx,list-box.mdx,tag-group.mdx}|components/(colors):{color-area.mdx,color-field.mdx,color-picker.mdx,color-slider.mdx,color-swatch-picker.mdx,color-swatch.mdx}|components/(controls):{slider.mdx,switch.mdx}|components/(data-display):{badge.mdx,chip.mdx,table.mdx}|components/(date-and-time):{calendar.mdx,date-field.mdx,date-picker.mdx,date-range-picker.mdx,range-calendar.mdx,time-field.mdx}|components/(feedback):{alert.mdx,meter.mdx,progress-bar.mdx,progress-circle.mdx,skeleton.mdx,spinner.mdx}|components/(forms):{checkbox-group.mdx,checkbox.mdx,description.mdx,error-message.mdx,field-error.mdx,fieldset.mdx,form.mdx,input-group.mdx,input-otp.mdx,input.mdx,label.mdx,number-field.mdx,radio-group.mdx,search-field.mdx,text-area.mdx,text-field.mdx}|components/(layout):{card.mdx,separator.mdx,surface.mdx,toolbar.mdx}|components/(media):{avatar.mdx}|components/(navigation):{accordion.mdx,breadcrumbs.mdx,disclosure-group.mdx,disclosure.mdx,link.mdx,pagination.mdx,tabs.mdx}|components/(overlays):{alert-dialog.mdx,drawer.mdx,modal.mdx,popover.mdx,toast.mdx,tooltip.mdx}|components/(pickers):{autocomplete.mdx,combo-box.mdx,select.mdx}|components/(typography):{kbd.mdx,typography.mdx}|components/(utilities):{scroll-shadow.mdx}|getting-started/(handbook):{animation.mdx,colors.mdx,composition.mdx,dark-mode.mdx,styling.mdx,theming.mdx}|getting-started/(overview):{cli.mdx,design-principles.mdx,frameworks.mdx,quick-start.mdx}|getting-started/(ui-for-agents):{agent-skills.mdx,agents-md.mdx,llms-txt.mdx,mcp-server.mdx}|releases:{v3-0-0-alpha-32.mdx,v3-0-0-alpha-33.mdx,v3-0-0-alpha-34.mdx,v3-0-0-alpha-35.mdx,v3-0-0-beta-1.mdx,v3-0-0-beta-2.mdx,v3-0-0-beta-3.mdx,v3-0-0-beta-4.mdx,v3-0-0-beta-6.mdx,v3-0-0-beta-7.mdx,v3-0-0-beta-8.mdx,v3-0-0-rc-1.mdx,v3-0-0.mdx,v3-0-2.mdx,v3-0-3.mdx,v3-0-4.mdx,v3-0-5.mdx,v3-1-0.mdx}|demos/cn/accordion:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-styles.tsx,disabled.tsx,faq.tsx,multiple.tsx,surface.tsx,without-separator.tsx}|demos/cn/alert-dialog:{backdrop-variants.tsx,close-methods.tsx,controlled.tsx,custom-animations.tsx,custom-backdrop.tsx,custom-icon.tsx,custom-portal.tsx,custom-trigger.tsx,default.tsx,dismiss-behavior.tsx,placements.tsx,sizes.mdx,statuses.tsx,with-close-button.tsx}|demos/cn/alert:{basic.tsx}|demos/cn/autocomplete:{allows-empty-collection.tsx,asynchronous-filtering.tsx,controlled-open-state.tsx,controlled.tsx,custom-indicator.tsx,default.tsx,disabled.tsx,email-recipients.tsx,full-width.tsx,location-search.tsx,multiple-select.tsx,required.tsx,single-select.tsx,tag-group-selection.tsx,user-selection-multiple.tsx,user-selection.tsx,variants.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/cn/avatar:{basic.tsx,colors.tsx,custom-styles.tsx,fallback.tsx,group.tsx,sizes.tsx,variants.tsx}|demos/cn/badge:{basic.tsx,colors.tsx,dot.tsx,placements.tsx,sizes.tsx,variants.tsx,with-content.tsx}|demos/cn/breadcrumbs:{basic.tsx,custom-render-function.tsx,custom-separator.tsx,disabled.tsx,level-2.tsx,level-3.tsx}|demos/cn/button-group:{basic.tsx,disabled.tsx,full-width.tsx,orientation.tsx,sizes.tsx,variants.tsx,with-icons.tsx,without-separator.tsx}|demos/cn/button:{basic.tsx,custom-render-function.tsx,custom-variants.tsx,disabled.tsx,full-width.tsx,icon-only.tsx,loading-state.tsx,loading.tsx,outline-variant.tsx,ripple-effect.tsx,sizes.tsx,social.tsx,variants.tsx,with-icons.tsx}|demos/cn/calendar:{basic.tsx,booking-calendar.tsx,controlled.tsx,custom-icons.tsx,custom-styles.tsx,default-value.tsx,disabled.tsx,focused-value.tsx,international-calendar.tsx,min-max-dates.tsx,multiple-months.tsx,read-only.tsx,unavailable-dates.tsx,with-indicators.tsx,year-picker.tsx}|demos/cn/card:{default.tsx,horizontal.tsx,variants.tsx,with-avatar.tsx,with-form.tsx,with-images.tsx}|demos/cn/checkbox-group:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,features-and-addons.tsx,indeterminate.tsx,on-surface.tsx,validation.tsx,with-custom-indicator.tsx}|demos/cn/checkbox:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-styles.tsx,default-selected.tsx,disabled.tsx,form.tsx,full-rounded.tsx,indeterminate.tsx,invalid.tsx,render-props.tsx,variants.tsx,with-description.tsx,with-label.tsx}|demos/cn/chip:{basic.tsx,statuses.tsx,variants.tsx,vibrant-palette.tsx,with-icon.tsx}|demos/cn/close-button:{default.tsx,interactive.tsx,variants.tsx,with-custom-icon.tsx}|demos/cn/color-area:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,space-and-channels.tsx,with-dots.tsx}|demos/cn/color-field:{basic.tsx,channel-editing.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx}|demos/cn/color-picker:{basic.tsx,controlled.tsx,with-fields.tsx,with-sliders.tsx,with-swatches.tsx}|demos/cn/color-slider:{alpha-channel.tsx,basic.tsx,channels.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,rgb-channels.tsx,vertical.tsx}|demos/cn/color-swatch-picker:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,default-value.tsx,disabled.tsx,sizes.tsx,stack-layout.tsx,variants.tsx}|demos/cn/color-swatch:{accessibility.tsx,basic.tsx,custom-render-function.tsx,custom-styles.tsx,shapes.tsx,sizes.tsx,transparency.tsx}|demos/cn/combo-box:{allows-custom-value.tsx,asynchronous-loading.tsx,controlled-input-value.tsx,controlled.tsx,custom-filtering.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-value.tsx,default-selected-key.tsx,default.tsx,disabled.tsx,full-width.tsx,menu-trigger.tsx,on-surface.tsx,required.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/cn/date-field:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,granularity.tsx,invalid.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-validation.tsx}|demos/cn/date-picker:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,format-options-no-ssr.tsx,format-options.tsx,international-calendar.tsx,with-custom-indicator.tsx,with-validation.tsx}|demos/cn/date-range-picker:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,format-options-no-ssr.tsx,format-options.tsx,input-container.tsx,international-calendar.tsx,with-custom-indicator.tsx,with-validation.tsx}|demos/cn/description:{basic.tsx}|demos/cn/disclosure-group:{basic.tsx,controlled.tsx}|demos/cn/disclosure:{basic.tsx,custom-render-function.tsx}|demos/cn/drawer:{backdrop-variants.tsx,basic.tsx,controlled.tsx,navigation.tsx,non-dismissable.tsx,placements.tsx,scrollable-content.tsx,with-form.tsx}|demos/cn/dropdown:{controlled-open-state.tsx,controlled.tsx,custom-trigger.tsx,default.tsx,long-press-trigger.tsx,single-with-custom-indicator.tsx,with-custom-submenu-indicator.tsx,with-descriptions.tsx,with-disabled-items.tsx,with-icons.tsx,with-keyboard-shortcuts.tsx,with-multiple-selection.tsx,with-section-level-selection.tsx,with-sections.tsx,with-single-selection.tsx,with-submenus.tsx}|demos/cn/error-message:{basic.tsx,with-tag-group.tsx}|demos/cn/field-error:{basic.tsx}|demos/cn/fieldset:{basic.tsx,on-surface.tsx}|demos/cn/form:{basic.tsx,custom-render-function.tsx}|demos/cn/input-group:{default.tsx,disabled.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,password-with-toggle.tsx,required.tsx,variants.tsx,with-badge-suffix.tsx,with-copy-suffix.tsx,with-icon-prefix-and-copy-suffix.tsx,with-icon-prefix-and-text-suffix.tsx,with-keyboard-shortcut.tsx,with-loading-suffix.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-text-prefix.tsx,with-text-suffix.tsx,with-textarea.tsx}|demos/cn/input-otp:{basic.tsx,controlled.tsx,disabled.tsx,form-example.tsx,four-digits.tsx,on-complete.tsx,on-surface.tsx,variants.tsx,with-pattern.tsx,with-validation.tsx}|demos/cn/input:{basic.tsx,controlled.tsx,full-width.tsx,on-surface.tsx,types.tsx,variants.tsx}|demos/cn/kbd:{basic.tsx,inline.tsx,instructional.tsx,navigation.tsx,special.tsx,variants.tsx}|demos/cn/label:{basic.tsx}|demos/cn/link:{basic.tsx,custom-icon.tsx,custom-render-function.tsx,icon-placement.tsx,underline-and-offset.tsx,underline-offset.tsx,underline-variants.tsx}|demos/cn/list-box:{controlled.tsx,custom-check-icon.tsx,custom-render-function.tsx,default.tsx,multi-select.tsx,scrollbar-modes.tsx,virtualization.tsx,with-disabled-items.tsx,with-sections.tsx}|demos/cn/meter:{basic.tsx,colors.tsx,custom-value.tsx,sizes.tsx,without-label.tsx}|demos/cn/modal:{backdrop-variants.tsx,close-methods.tsx,controlled.tsx,custom-animations.tsx,custom-backdrop.tsx,custom-portal.tsx,custom-trigger.tsx,default.tsx,dismiss-behavior.tsx,placements.tsx,scroll-comparison.tsx,sizes.tsx,with-form.tsx}|demos/cn/number-field:{basic.tsx,controlled.tsx,custom-icons.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,on-surface.tsx,required.tsx,validation.tsx,variants.tsx,with-chevrons.tsx,with-description.tsx,with-format-options.tsx,with-step.tsx,with-validation.tsx}|demos/cn/pagination:{basic.tsx,controlled.tsx,custom-icons.tsx,disabled.tsx,simple-prev-next.tsx,sizes.tsx,with-ellipsis.tsx,with-summary.tsx}|demos/cn/popover:{basic.tsx,custom-render-function.tsx,interactive.tsx,placement.tsx,with-arrow.tsx}|demos/cn/progress-bar:{basic.tsx,colors.tsx,custom-value.tsx,indeterminate.tsx,sizes.tsx,without-label.tsx}|demos/cn/progress-circle:{basic.tsx,colors.tsx,custom-svg.tsx,indeterminate.tsx,sizes.tsx,with-label.tsx}|demos/cn/radio-group:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,delivery-and-payment.tsx,disabled.tsx,horizontal.tsx,on-surface.tsx,uncontrolled.tsx,validation.tsx,variants.tsx}|demos/cn/range-calendar:{allows-non-contiguous-ranges.tsx,basic.tsx,booking-calendar.tsx,controlled.tsx,default-value.tsx,disabled.tsx,focused-value.tsx,international-calendar.tsx,invalid.tsx,min-max-dates.tsx,multiple-months.tsx,read-only.tsx,three-months.tsx,unavailable-dates.tsx,with-indicators.tsx,year-picker.tsx}|demos/cn/scroll-shadow:{custom-size.tsx,default.tsx,hide-scroll-bar.tsx,orientation.tsx,visibility-change.tsx,with-card.tsx}|demos/cn/search-field:{basic.tsx,controlled.tsx,custom-icons.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,on-surface.tsx,required.tsx,validation.tsx,variants.tsx,with-description.tsx,with-keyboard-shortcut.tsx,with-validation.tsx}|demos/cn/select:{asynchronous-loading.tsx,controlled-multiple.tsx,controlled-open-state.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-value-multiple.tsx,custom-value.tsx,default.tsx,disabled.tsx,full-width.tsx,multiple-select.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/cn/separator:{basic.tsx,custom-render-function.tsx,manual-variant-override.tsx,variants.tsx,vertical.tsx,with-content.tsx,with-surface.tsx}|demos/cn/skeleton:{animation-types.tsx,basic.tsx,card.tsx,grid.tsx,list.tsx,single-shimmer.tsx,text-content.tsx,user-profile.tsx}|demos/cn/slider:{custom-render-function.tsx,default.tsx,disabled.tsx,range.tsx,vertical.tsx}|demos/cn/spinner:{basic.tsx,colors.tsx,sizes.tsx}|demos/cn/surface:{variants.tsx}|demos/cn/switch:{basic.tsx,controlled.tsx,custom-render-function.tsx,custom-styles.tsx,default-selected.tsx,disabled.tsx,form.tsx,group-horizontal.tsx,group.tsx,label-position.tsx,render-props.tsx,sizes.tsx,with-description.tsx,with-icons.tsx,without-label.tsx}|demos/cn/table:{async-loading.tsx,basic.tsx,column-resizing.tsx,custom-cells.tsx,empty-state.tsx,expandable-rows.tsx,pagination.tsx,secondary-variant.tsx,selection.tsx,sorting.tsx,tanstack-table.tsx,virtualization.tsx}|demos/cn/tabs:{basic.tsx,custom-render-function.tsx,custom-styles.tsx,disabled.tsx,secondary-vertical.tsx,secondary.tsx,vertical.tsx,with-separator.tsx}|demos/cn/tag-group:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,selection-modes.tsx,sizes.tsx,variants.tsx,with-error-message.tsx,with-list-data.tsx,with-prefix.tsx,with-remove-button.tsx}|demos/cn/textarea:{basic.tsx,controlled.tsx,full-width.tsx,on-surface.tsx,rows.tsx,variants.tsx}|demos/cn/textfield:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,full-width.tsx,input-types.tsx,on-surface.tsx,required.tsx,textarea.tsx,validation.tsx,with-description.tsx,with-error.tsx}|demos/cn/time-field:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,required.tsx,with-description.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-validation.tsx}|demos/cn/toast:{callbacks.tsx,custom-indicator.tsx,custom-queue.tsx,custom-toast.tsx,default.tsx,placements.tsx,promise.tsx,simple.tsx,variants.tsx}|demos/cn/toggle-button-group:{attached.tsx,basic.tsx,controlled.tsx,disabled.tsx,full-width.tsx,orientation.tsx,selection-mode.tsx,sizes.tsx,without-separator.tsx}|demos/cn/toggle-button:{basic.tsx,controlled.tsx,disabled.tsx,icon-only.tsx,sizes.tsx,variants.tsx}|demos/cn/toolbar:{basic.tsx,custom-styles.tsx,vertical.tsx,with-button-group.tsx}|demos/cn/tooltip:{basic.tsx,custom-render-function.tsx,custom-trigger.tsx,placement.tsx,with-arrow.tsx}|demos/cn/typography:{default.tsx,primitives.tsx,prose.tsx,render-props.tsx,typography-scale.tsx}|demos/en/accordion:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-styles.tsx,disabled.tsx,faq.tsx,multiple.tsx,surface.tsx,without-separator.tsx}|demos/en/alert-dialog:{backdrop-variants.tsx,close-methods.tsx,controlled.tsx,custom-animations.tsx,custom-backdrop.tsx,custom-icon.tsx,custom-portal.tsx,custom-trigger.tsx,default.tsx,dismiss-behavior.tsx,placements.tsx,sizes.tsx,statuses.tsx,with-close-button.tsx}|demos/en/alert:{basic.tsx}|demos/en/autocomplete:{allows-empty-collection.tsx,asynchronous-filtering.tsx,controlled-open-state.tsx,controlled.tsx,custom-indicator.tsx,default.tsx,disabled.tsx,email-recipients.tsx,full-width.tsx,location-search.tsx,multiple-select.tsx,required.tsx,single-select.tsx,tag-group-selection.tsx,user-selection-multiple.tsx,user-selection.tsx,variants.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/en/avatar:{basic.tsx,colors.tsx,custom-styles.tsx,fallback.tsx,group.tsx,sizes.tsx,variants.tsx}|demos/en/badge:{basic.tsx,colors.tsx,dot.tsx,placements.tsx,sizes.tsx,variants.tsx,with-content.tsx}|demos/en/breadcrumbs:{basic.tsx,custom-render-function.tsx,custom-separator.tsx,disabled.tsx,level-2.tsx,level-3.tsx}|demos/en/button-group:{basic.tsx,disabled.tsx,full-width.tsx,orientation.tsx,sizes.tsx,variants.tsx,with-icons.tsx,without-separator.tsx}|demos/en/button:{basic.tsx,custom-render-function.tsx,custom-variants.tsx,disabled.tsx,full-width.tsx,icon-only.tsx,loading-state.tsx,loading.tsx,outline-variant.tsx,ripple-effect.tsx,sizes.tsx,social.tsx,variants.tsx,with-icons.tsx}|demos/en/calendar:{basic.tsx,booking-calendar.tsx,controlled.tsx,custom-icons.tsx,custom-styles.tsx,default-value.tsx,disabled.tsx,focused-value.tsx,international-calendar.tsx,min-max-dates.tsx,multiple-months.tsx,read-only.tsx,unavailable-dates.tsx,with-indicators.tsx,year-picker.tsx}|demos/en/card:{default.tsx,horizontal.tsx,variants.tsx,with-avatar.tsx,with-form.tsx,with-images.tsx}|demos/en/checkbox-group:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,features-and-addons.tsx,indeterminate.tsx,on-surface.tsx,validation.tsx,with-custom-indicator.tsx}|demos/en/checkbox:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-styles.tsx,default-selected.tsx,disabled.tsx,form.tsx,full-rounded.tsx,indeterminate.tsx,invalid.tsx,render-props.tsx,variants.tsx,with-description.tsx,with-label.tsx}|demos/en/chip:{basic.tsx,statuses.tsx,variants.tsx,vibrant-palette.tsx,with-icon.tsx}|demos/en/close-button:{default.tsx,interactive.tsx,variants.tsx,with-custom-icon.tsx}|demos/en/color-area:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,space-and-channels.tsx,with-dots.tsx}|demos/en/color-field:{basic.tsx,channel-editing.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx}|demos/en/color-picker:{basic.tsx,controlled.tsx,with-fields.tsx,with-sliders.tsx,with-swatches.tsx}|demos/en/color-slider:{alpha-channel.tsx,basic.tsx,channels.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,rgb-channels.tsx,vertical.tsx}|demos/en/color-swatch-picker:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,default-value.tsx,disabled.tsx,sizes.tsx,stack-layout.tsx,variants.tsx}|demos/en/color-swatch:{accessibility.tsx,basic.tsx,custom-render-function.tsx,custom-styles.tsx,shapes.tsx,sizes.tsx,transparency.tsx}|demos/en/combo-box:{allows-custom-value.tsx,asynchronous-loading.tsx,controlled-input-value.tsx,controlled.tsx,custom-filtering.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-value.tsx,default-selected-key.tsx,default.tsx,disabled.tsx,full-width.tsx,menu-trigger.tsx,on-surface.tsx,required.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/en/date-field:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,granularity.tsx,invalid.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-validation.tsx}|demos/en/date-picker:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,format-options-no-ssr.tsx,format-options.tsx,international-calendar.tsx,with-custom-indicator.tsx,with-validation.tsx}|demos/en/date-range-picker:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,format-options-no-ssr.tsx,format-options.tsx,input-container.tsx,international-calendar.tsx,with-custom-indicator.tsx,with-validation.tsx}|demos/en/description:{basic.tsx}|demos/en/disclosure-group:{basic.tsx,controlled.tsx}|demos/en/disclosure:{basic.tsx,custom-render-function.tsx}|demos/en/drawer:{backdrop-variants.tsx,basic.tsx,controlled.tsx,navigation.tsx,non-dismissable.tsx,placements.tsx,scrollable-content.tsx,with-form.tsx}|demos/en/dropdown:{controlled-open-state.tsx,controlled.tsx,custom-trigger.tsx,default.tsx,long-press-trigger.tsx,single-with-custom-indicator.tsx,with-custom-submenu-indicator.tsx,with-descriptions.tsx,with-disabled-items.tsx,with-icons.tsx,with-keyboard-shortcuts.tsx,with-multiple-selection.tsx,with-section-level-selection.tsx,with-sections.tsx,with-single-selection.tsx,with-submenus.tsx}|demos/en/error-message:{basic.tsx,with-tag-group.tsx}|demos/en/field-error:{basic.tsx}|demos/en/fieldset:{basic.tsx,on-surface.tsx}|demos/en/form:{basic.tsx,custom-render-function.tsx}|demos/en/input-group:{default.tsx,disabled.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,password-with-toggle.tsx,required.tsx,variants.tsx,with-badge-suffix.tsx,with-copy-suffix.tsx,with-icon-prefix-and-copy-suffix.tsx,with-icon-prefix-and-text-suffix.tsx,with-keyboard-shortcut.tsx,with-loading-suffix.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-text-prefix.tsx,with-text-suffix.tsx,with-textarea.tsx}|demos/en/input-otp:{basic.tsx,controlled.tsx,disabled.tsx,form-example.tsx,four-digits.tsx,on-complete.tsx,on-surface.tsx,variants.tsx,with-pattern.tsx,with-validation.tsx}|demos/en/input:{basic.tsx,controlled.tsx,full-width.tsx,on-surface.tsx,types.tsx,variants.tsx}|demos/en/kbd:{basic.tsx,inline.tsx,instructional.tsx,navigation.tsx,special.tsx,variants.tsx}|demos/en/label:{basic.tsx}|demos/en/link:{basic.tsx,custom-icon.tsx,custom-render-function.tsx,icon-placement.tsx,underline-and-offset.tsx,underline-offset.tsx,underline-variants.tsx}|demos/en/list-box:{controlled.tsx,custom-check-icon.tsx,custom-render-function.tsx,default.tsx,multi-select.tsx,scrollbar-modes.tsx,virtualization.tsx,with-disabled-items.tsx,with-sections.tsx}|demos/en/meter:{basic.tsx,colors.tsx,custom-value.tsx,sizes.tsx,without-label.tsx}|demos/en/modal:{backdrop-variants.tsx,close-methods.tsx,controlled.tsx,custom-animations.tsx,custom-backdrop.tsx,custom-portal.tsx,custom-trigger.tsx,default.tsx,dismiss-behavior.tsx,placements.tsx,scroll-comparison.tsx,sizes.tsx,with-form.tsx}|demos/en/number-field:{basic.tsx,controlled.tsx,custom-icons.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,on-surface.tsx,required.tsx,validation.tsx,variants.tsx,with-chevrons.tsx,with-description.tsx,with-format-options.tsx,with-step.tsx,with-validation.tsx}|demos/en/pagination:{basic.tsx,controlled.tsx,custom-icons.tsx,disabled.tsx,simple-prev-next.tsx,sizes.tsx,with-ellipsis.tsx,with-summary.tsx}|demos/en/popover:{basic.tsx,custom-render-function.tsx,interactive.tsx,placement.tsx,with-arrow.tsx}|demos/en/progress-bar:{basic.tsx,colors.tsx,custom-value.tsx,indeterminate.tsx,sizes.tsx,without-label.tsx}|demos/en/progress-circle:{basic.tsx,colors.tsx,custom-svg.tsx,indeterminate.tsx,sizes.tsx,with-label.tsx}|demos/en/radio-group:{basic.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,delivery-and-payment.tsx,disabled.tsx,horizontal.tsx,on-surface.tsx,uncontrolled.tsx,validation.tsx,variants.tsx}|demos/en/range-calendar:{allows-non-contiguous-ranges.tsx,basic.tsx,booking-calendar.tsx,controlled.tsx,default-value.tsx,disabled.tsx,focused-value.tsx,international-calendar.tsx,invalid.tsx,min-max-dates.tsx,multiple-months.tsx,read-only.tsx,three-months.tsx,unavailable-dates.tsx,with-indicators.tsx,year-picker.tsx}|demos/en/scroll-shadow:{custom-size.tsx,default.tsx,hide-scroll-bar.tsx,orientation.tsx,visibility-change.tsx,with-card.tsx}|demos/en/search-field:{basic.tsx,controlled.tsx,custom-icons.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,on-surface.tsx,required.tsx,validation.tsx,variants.tsx,with-description.tsx,with-keyboard-shortcut.tsx,with-validation.tsx}|demos/en/select:{asynchronous-loading.tsx,controlled-multiple.tsx,controlled-open-state.tsx,controlled.tsx,custom-indicator.tsx,custom-render-function.tsx,custom-value-multiple.tsx,custom-value.tsx,default.tsx,disabled.tsx,full-width.tsx,multiple-select.tsx,on-surface.tsx,required.tsx,variants.tsx,with-description.tsx,with-disabled-options.tsx,with-sections.tsx}|demos/en/separator:{basic.tsx,custom-render-function.tsx,manual-variant-override.tsx,variants.tsx,vertical.tsx,with-content.tsx,with-surface.tsx}|demos/en/skeleton:{animation-types.tsx,basic.tsx,card.tsx,grid.tsx,list.tsx,single-shimmer.tsx,text-content.tsx,user-profile.tsx}|demos/en/slider:{custom-render-function.tsx,default.tsx,disabled.tsx,range.tsx,vertical.tsx}|demos/en/spinner:{basic.tsx,colors.tsx,sizes.tsx}|demos/en/surface:{variants.tsx}|demos/en/switch:{basic.tsx,controlled.tsx,custom-render-function.tsx,custom-styles.tsx,default-selected.tsx,disabled.tsx,form.tsx,group-horizontal.tsx,group.tsx,label-position.tsx,render-props.tsx,sizes.tsx,with-description.tsx,with-icons.tsx,without-label.tsx}|demos/en/table:{async-loading.tsx,basic.tsx,column-resizing.tsx,custom-cells.tsx,empty-state.tsx,expandable-rows.tsx,pagination.tsx,secondary-variant.tsx,selection.tsx,sorting.tsx,tanstack-table.tsx,virtualization.tsx}|demos/en/tabs:{basic.tsx,custom-render-function.tsx,custom-styles.tsx,disabled.tsx,secondary-vertical.tsx,secondary.tsx,vertical.tsx,with-separator.tsx}|demos/en/tag-group:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,selection-modes.tsx,sizes.tsx,variants.tsx,with-error-message.tsx,with-list-data.tsx,with-prefix.tsx,with-remove-button.tsx}|demos/en/textarea:{basic.tsx,controlled.tsx,full-width.tsx,on-surface.tsx,rows.tsx,variants.tsx}|demos/en/textfield:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,full-width.tsx,input-types.tsx,on-surface.tsx,required.tsx,textarea.tsx,validation.tsx,with-description.tsx,with-error.tsx}|demos/en/time-field:{basic.tsx,controlled.tsx,custom-render-function.tsx,disabled.tsx,form-example.tsx,full-width.tsx,invalid.tsx,on-surface.tsx,required.tsx,with-description.tsx,with-prefix-and-suffix.tsx,with-prefix-icon.tsx,with-suffix-icon.tsx,with-validation.tsx}|demos/en/toast:{callbacks.tsx,custom-indicator.tsx,custom-queue.tsx,custom-toast.tsx,default.tsx,placements.tsx,promise.tsx,simple.tsx,variants.tsx}|demos/en/toggle-button-group:{attached.tsx,basic.tsx,controlled.tsx,disabled.tsx,full-width.tsx,orientation.tsx,selection-mode.tsx,sizes.tsx,without-separator.tsx}|demos/en/toggle-button:{basic.tsx,controlled.tsx,disabled.tsx,icon-only.tsx,sizes.tsx,variants.tsx}|demos/en/toolbar:{basic.tsx,custom-styles.tsx,vertical.tsx,with-button-group.tsx}|demos/en/tooltip:{basic.tsx,custom-render-function.tsx,custom-trigger.tsx,placement.tsx,with-arrow.tsx}|demos/en/typography:{default.tsx,primitives.tsx,prose.tsx,render-props.tsx,typography-scale.tsx}
+<!-- HEROUI-REACT-AGENTS-MD-END -->
