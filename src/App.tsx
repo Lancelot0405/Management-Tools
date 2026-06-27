@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import LoginScreen    from './components/layout/LoginScreen';
@@ -28,6 +28,35 @@ function Lazy({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { currentUser, loading } = useApp();
+
+  // Sửa lỗi cuộn/lệch giao diện khi đóng/mở bàn phím ảo trên iOS PWA standalone
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    if (!isIOS) return;
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 300);
+      }
+    };
+
+    const handleFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
 
   if (loading) {
     return (

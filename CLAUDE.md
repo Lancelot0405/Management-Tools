@@ -2,8 +2,9 @@
 
 ## Quy tắc bắt buộc
 
-- Luôn triển khai cho **PWA (mobile)** trước, sau đó mới điều chỉnh cho Tablet/PC
+- Luôn tối ưu hóa giao diện và trải nghiệm người dùng đồng thời cho cả 3 nền tảng: **Mobile (PWA)**, **Tablet**, và **PC/Desktop** (sử dụng Responsive & Adaptive layouts)
 - Luôn **chia nhỏ kế hoạch** thành các bước cụ thể trước khi bắt đầu triển khai
+- Kế hoạch phải được chia đều ra thành từng Phase rõ ràng. Sau khi hoàn thành mỗi Phase, Antigravity phải tạm dừng và push các thay đổi trực tiếp lên git ở nhánh `test`.
 - **Build phải sạch** (`npm run build`) trước mỗi commit
 - **Không thêm tính năng** ngoài phạm vi yêu cầu
 
